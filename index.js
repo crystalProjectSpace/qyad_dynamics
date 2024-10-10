@@ -1,6 +1,6 @@
 'use strict'
 
-
+const fs = require('fs').promises
 
 //  (+1)       (+3)
 //   \\       //
@@ -22,25 +22,33 @@ function getADX(alpha) {
 	}
 }
 
-const KTH = 4.5
-const KPSI = 4.5
+const KTH = 2.5
+const KPSI = 2.5
 const g = 9.81
 
 function setControls(state, ctrl, prog) {
-	const deltaTh = (prog.getTh(state[0])- state[6]) - state[4] * 3
-	const deltaPsi = prog.getPsi(state[0]) - state[7]
+	const t = state[0]
 	const Th = state[2]
-
-	const _rev1 = 0.5 + deltaTh * KTH + deltaPsi * KPSI
-	const _rev2 = 0.5 + deltaTh * KTH - deltaPsi * KPSI
-	const _rev3 = 0.5 - deltaTh * KTH + deltaPsi * KPSI
-	const _rev4 = 0.5 - deltaTh * KTH - deltaPsi * KPSI
+	const dAoa = state[4]
+	const dGamma = state[5]
+	const aoa = state[6]	
+	const roll = state[7]
 	
-	ctrl.rev1 = Math.min(1, Math.max(0, _rev1)) * Math.max(0, 1 - 5.85*Th)
-	ctrl.rev2 = Math.min(1, Math.max(0, _rev2))* Math.max(0, 1 - 5.85*Th)
-	ctrl.rev3 = Math.min(1, Math.max(0, _rev3))* Math.max(0, 1 - 5.85*Th)
-	ctrl.rev4 = Math.min(1, Math.max(0, _rev4))* Math.max(0, 1 - 5.85*Th)
-	console.log(ctrl)
+	const deltaA = (prog.getAlpha(t)- aoa) - dAoa * 4
+	const deltaPsi = (prog.getPsi(t) - roll) - dGamma * 4
+	const deltaTh = Th - prog.getTh(t)
+
+	const _rev1 = 0.5 + deltaA * KTH + deltaPsi * KPSI
+	const _rev2 = 0.5 + deltaA * KTH - deltaPsi * KPSI
+	const _rev3 = 0.5 - deltaA * KTH + deltaPsi * KPSI
+	const _rev4 = 0.5 - deltaA * KTH - deltaPsi * KPSI
+	
+	const kThrust = Math.max(0, 1 - 5.85 * deltaTh)
+	
+	ctrl.rev1 = Math.min(1, Math.max(0, _rev1)* kThrust) 
+	ctrl.rev2 = Math.min(1, Math.max(0, _rev2)* kThrust)
+	ctrl.rev3 = Math.min(1, Math.max(0, _rev3)* kThrust)
+	ctrl.rev4 = Math.min(1, Math.max(0, _rev4)* kThrust) 
 }
 
 function derivatives(state, ctrl, prms) {
@@ -75,7 +83,7 @@ function derivatives(state, ctrl, prms) {
 
 	const dAlpha = prms.w * (ctrl.rev1 + ctrl.rev2 - ctrl.rev3 - ctrl.rev4) * prms.lx/prms.Jz
 	const dGamma = prms.w * (ctrl.rev1 + ctrl.rev3 - ctrl.rev2 - ctrl.rev4) * prms.ly/prms.Jx
-	
+
 	return [
 	  0,
 	  AX,
@@ -151,7 +159,10 @@ function arrayCombination(U, V, kU, kV) {
 	
 	return result
 }
-
+// ------------------------------------------------
+/**
+* @description Здесь начинается расчет тестовой траектории
+*/
 {
     const dT = 0.01
 	                  //t V  Th Psi wA wG  AoA G  X  Y  Z
@@ -161,20 +172,27 @@ function arrayCombination(U, V, kU, kV) {
 		S: 0.032,
 		Jz: 1.75,
 		Jx: 0.5,
-		w: 15,
+		w: 12.5,
 		lx: 0.2,
 		ly: 0.15
 	}
 
 	const testProg = {
-		getTh: function(t) {
-			return -(17.5 / 57.3)
+		getAlpha: function(t) {
+			return -(0.5 / 57.3)
 		},
 		getPsi: function(t) {
-			return 0
+			if(t < 20) return 0
+			if(t > 20 && t < 30) return 15 / 57.3
+			if(t > 30) return 0
+		},
+		getTh: function(t) {
+			if( t < 30) return 0
+			if (t > 30 && t < 35) return -20/57.3
+			if (t > 35) return 0
 		}
 	}
-	const res = integrate(testState, testParams, testProg, dT, 45.5)
+	const res = integrate(testState, testParams, testProg, dT, 60.0)
 	let output = ''
 	res.forEach(r => {
 		const [t, V,  Th, Psi, wA, wG,  AoA, G,  X,  Y,  Z, r1, r2, r3, r4] = r
@@ -194,10 +212,11 @@ function arrayCombination(U, V, kU, kV) {
 			r2.toFixed(2),
 			r3.toFixed(2),
 			r4.toFixed(2),
-		].join('\t')
+		].join('\t').replace(/\./g, ',')
 
 		output += (str + '\n')
  	})
-
-	console.log(output)
+	fs
+		.writeFile('./res.txt', output)
+		.then(() => { console.log('ready')})
 }
