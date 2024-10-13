@@ -38,11 +38,17 @@ def setControls(state, ctrl, prog):
     _rev2 = 0.5 + signal_aoa - signal_roll
     _rev3 = 0.5 - signal_aoa + signal_roll
     _rev4 = 0.5 - signal_aoa - signal_roll
-        
-    ctrl['rev1'] = min(1, max(0, _rev1) * signal_thrust) 
-    ctrl['rev2'] = min(1, max(0, _rev2) * signal_thrust)
-    ctrl['rev3'] = min(1, max(0, _rev3) * signal_thrust)
-    ctrl['rev4'] = min(1, max(0, _rev4) * signal_thrust) 
+
+    if t < 51.0:
+        ctrl['rev1'] = min(1, max(0, _rev1) * signal_thrust) 
+        ctrl['rev2'] = min(1, max(0, _rev2) * signal_thrust)
+        ctrl['rev3'] = min(1, max(0, _rev3) * signal_thrust)
+        ctrl['rev4'] = min(1, max(0, _rev4) * signal_thrust)
+    else:
+        ctrl['rev1'] = 0.55
+        ctrl['rev2'] = 0.55
+        ctrl['rev3'] = 0.55
+        ctrl['rev4'] = 0.55
 # получить производные от кинематических функций
 def derivatives(state, ctrl, prms):
     V = state[1]
@@ -148,7 +154,7 @@ def create_text_output(arr):
         r2 = row[12]
         r3 = row[13]
         r4 = row[14]
-        temp_str = f"{t:.2f} {v:.1f} {th:.2f} {psi:.2f} {daoa:.3f} {droll:.3f} {aoa:.2f} {roll:.2f} {x:.1f} {y:.1f} {z:.1f} {r1:.2f} {r2:.2f} {r3:.2f} {r4:.2f}" 
+        temp_str = f"{t:.2f}\t{v:.1f}\t{th:.2f}\t{psi:.2f}\t{daoa:.3f}\t{droll:.3f}\t{aoa:.2f}\t{roll:.2f}\t{x:.1f}\t{y:.1f}\t{z:.1f}\t{r1:.2f}\t{r2:.2f}\t{r3:.2f}\t{r4:.2f}" 
         result = result + '\n' + temp_str
     return result
 # сумма двух массивов
@@ -167,25 +173,41 @@ class ControlProg:
 
     @staticmethod
     def get_alpha(t):
-        return -(0.5 / 57.3)
+        if (t < 20):
+            return -(12.5 / 57.3)
+        if (t < 25):
+            return -(0 / 57.3)
+        if (25 < t < 30):
+            return 25 / 57.3
+        if (30 < t < 35):
+            return 45 / 57.3   
+        if (35 < t < 40):
+            return 55 / 57.3
+        if (40 < t < 45):
+            return 75 / 57.3
+        if (45 < t < 60):
+            return 85 / 57.3        
 
     @staticmethod
     def get_psi(t):
-        if t < 20:
-            return 0
-        if 20 < t < 30:
-            return 15 / 57.3
-        if t > 30:
-            return 0
+        return 0
 
     @staticmethod
     def get_th(t):
-        if t < 30:
+        if t < 20:
             return 0
-        if 30 < t < 35:
+        if 20 < t < 25:
             return -20 / 57.3
-        if t > 35:
-            return 0
+        if 25 < t < 30:
+            return -30 / 47.3
+        if 30 < t < 35:
+            return -40 / 47.3
+        if 35 < t < 40:
+            return -40 / 47.3  
+        if 40 < t < 45:
+            return -55 / 47.3
+        if 45 < t < 70:
+            return -75 / 47.3        
 
     def __init__(self, k_prop_aoa, k_diff_aoa, k_prop_roll, k_diff_roll, k_prop_thrust):
         self.k_prop_aoa = k_prop_aoa
@@ -195,8 +217,7 @@ class ControlProg:
         self.k_prop_thrust = k_prop_thrust
 
 def simulation_run():
-    print('test')
-    test_prog = ControlProg(2.5, 15, 2.5, 15, 5.85)
+    test_prog = ControlProg(2.75, 12, 2.75, 12, 5.85)
 
     test_state = [0, 5, 0, 0, 0, 0, 0, 0, 0, 500, 0, 0.5, 0.5, 0.5, 0.5]
 
@@ -209,8 +230,8 @@ def simulation_run():
         'lx': 0.2,
         'ly': 0.15
     }
-    print('t1 >>>')
-    result = integrate(test_state, test_prms, test_prog, 0.01, 40)
+
+    result = integrate(test_state, test_prms, test_prog, 0.01, 60)
     res_str = create_text_output(result)
     output = open('result.txt', 'wt')
     output.write(res_str)
